@@ -24520,6 +24520,33 @@
         if (hbInterval) window.clearInterval(hbInterval);
       };
     }, [isTracking, auth.baseUrl, auth.token, activity]);
+    (0, import_react.useEffect)(() => {
+      if (!isTracking || !auth.token || !window.flowtrackAgent?.captureScreen) return;
+      let cancelled = false;
+      const interval = window.setInterval(async () => {
+        try {
+          const data = await window.flowtrackAgent.captureScreen();
+          if (!data || cancelled) return;
+          const blob = new Blob([data], { type: "image/png" });
+          const form = new FormData();
+          form.append("screenshot", blob, "desktop-screen.png");
+          form.append("url", "desktop://screen");
+          form.append("title", "FlowTrack Desktop Agent");
+          await fetch(`${auth.baseUrl}/api/track/screenshot`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${auth.token}`
+            },
+            body: form
+          });
+        } catch {
+        }
+      }, 2e4);
+      return () => {
+        cancelled = true;
+        window.clearInterval(interval);
+      };
+    }, [isTracking, auth.baseUrl, auth.token]);
     const setStatusMessage = (message, kind = null) => {
       setStatus({ message, kind });
     };
