@@ -20,6 +20,8 @@ export async function GET(request: Request) {
 
   const organizationId = userDoc.organizationId;
 
+  const total = await Message.countDocuments({ organizationId });
+
   const messages = await Message.find({ organizationId })
     .sort({ createdAt: -1 })
     .limit(50)
@@ -37,7 +39,7 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ items, currentUserId: currentUser.id });
+  return NextResponse.json({ items, currentUserId: currentUser.id, total });
 }
 
 export async function POST(request: Request) {

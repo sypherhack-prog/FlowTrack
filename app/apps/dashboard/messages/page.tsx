@@ -88,6 +88,9 @@ export default function MessagesPage() {
       if (data.message) {
         setMessages((prev) => [data.message as MessageItem, ...prev]);
         setNewMessage('');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('flowtrack:message-created'));
+        }
       }
     } finally {
       setSending(false);

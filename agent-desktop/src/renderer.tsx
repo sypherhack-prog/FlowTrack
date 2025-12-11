@@ -132,10 +132,23 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isTracking || !auth.token || !window.flowtrackAgent?.captureScreen) return;
 
+    // Log léger pour vérifier que l'effet de capture est actif
+    // côté agent pendant le debug.
+    // eslint-disable-next-line no-console
+    console.log('[FlowTrack Agent] Desktop capture effect active', {
+      isTracking,
+      hasToken: !!auth.token,
+      hasCapture: !!window.flowtrackAgent?.captureScreen,
+    });
+
     let cancelled = false;
     const interval = window.setInterval(async () => {
       try {
         const data = await window.flowtrackAgent!.captureScreen!();
+
+        // eslint-disable-next-line no-console
+        console.log('[FlowTrack Agent] captureScreen result', { hasData: !!data });
+
         if (!data || cancelled) return;
 
         const blob = new Blob([data], { type: 'image/png' });
@@ -151,10 +164,11 @@ const App: React.FC = () => {
           },
           body: form,
         });
-      } catch {
-        // on garde silencieux côté agent
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[FlowTrack Agent] Failed to send desktop screenshot', err);
       }
-    }, 20_000); // toutes les 20s comme le tracker web
+    }, 10_000); // toutes les 10s pour une timeline plus détaillée
 
     return () => {
       cancelled = true;
@@ -212,6 +226,44 @@ const App: React.FC = () => {
     setSeconds(0);
     setActivity('idle');
     setStatusMessage('Déconnecté.', 'success');
+  };
+
+  const handleTestCapture = async () => {
+    if (!auth.token || !auth.baseUrl.trim() || !window.flowtrackAgent?.captureScreen) return;
+
+    const baseUrl = auth.baseUrl.trim();
+
+    try {
+      const data = await window.flowtrackAgent.captureScreen();
+
+      if (!data) {
+        setStatusMessage("Impossible de capturer l'écran (aucune source détectée).", 'error');
+        return;
+      }
+
+      const blob = new Blob([data], { type: 'image/png' });
+      const form = new FormData();
+      form.append('screenshot', blob, 'desktop-test.png');
+      form.append('url', 'desktop://screen');
+      form.append('title', 'FlowTrack Desktop Agent (test)');
+
+      const res = await fetch(`${baseUrl}/api/track/screenshot`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: form,
+      });
+
+      if (!res.ok) {
+        setStatusMessage(`Erreur lors de l'envoi de la capture test (HTTP ${res.status}).`, 'error');
+        return;
+      }
+
+      setStatusMessage('Capture test envoyée avec succès.', 'success');
+    } catch {
+      setStatusMessage('Erreur lors de la capture test.', 'error');
+    }
   };
 
   const handleToggleTracking = async () => {
@@ -347,6 +399,14 @@ const App: React.FC = () => {
             Les données sont envoyées à votre espace FlowTrack toutes les quelques secondes.
           </div>
           <div style={{ marginTop: 4 }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ width: 'auto', paddingInline: 8, fontSize: 11, marginRight: 8 }}
+              onClick={handleTestCapture}
+            >
+              Test capture
+            </button>
             <button
               id="logoutBtn"
               className="btn btn-ghost"

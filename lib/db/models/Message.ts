@@ -9,5 +9,6 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+messageSchema.index({ organizationId: 1, createdAt: -1 });
 
 export default mongoose.models.Message || mongoose.model('Message', messageSchema);

@@ -1,20 +1,18 @@
 // agent-desktop/preload.js
 // Expose a minimal API to the renderer, including a screen capture helper.
 
-const { contextBridge, desktopCapturer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 async function captureScreen() {
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: 1280, height: 720 },
-  });
-
-  if (!sources.length) return null;
-
-  const primary = sources[0];
-  const pngBuffer = primary.thumbnail.toPNG();
-  // Expose a plain ArrayBuffer to the renderer
-  return pngBuffer.buffer.slice(pngBuffer.byteOffset, pngBuffer.byteOffset + pngBuffer.byteLength);
+  try {
+    const arrayBuffer = await ipcRenderer.invoke('flowtrack:capture-screen');
+    if (!arrayBuffer) return null;
+    return arrayBuffer;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[FlowTrack Agent] preload captureScreen failed', err);
+    return null;
+  }
 }
 
 contextBridge.exposeInMainWorld('flowtrackAgent', {

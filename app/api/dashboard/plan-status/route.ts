@@ -52,9 +52,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
+    const now = new Date();
+
     let trialExpired = false;
     if (org.plan === 'trial') {
-      const now = new Date();
       if (!org.trialEndsAt) {
         org.trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         await org.save();
@@ -64,17 +65,46 @@ export async function GET(request: Request) {
       }
     }
 
+    if (process.env.FORCE_TRIAL_EXPIRED === 'true' && org.plan === 'trial') {
+      trialExpired = true;
+    }
+
+    let paidPlanExpired = false;
+    if (org.plan !== 'trial') {
+      if (org.planExpiresAt && org.planExpiresAt.getTime() < now.getTime()) {
+        paidPlanExpired = true;
+      }
+    }
+
     const membership = await Membership.findOne({ organizationId, userId: userDoc._id });
     const currentRole = (membership?.role as string | undefined) ?? 'member';
     const organizationIdStr =
       (organizationId as any)?.toString?.() ?? (typeof organizationId === 'string' ? organizationId : '');
 
+    const extensionChromeUrl = process.env.NEXT_PUBLIC_EXTENSION_CHROME_URL || '';
+    const extensionEdgeUrl = process.env.NEXT_PUBLIC_EXTENSION_EDGE_URL || '';
+    const extensionFirefoxUrl = process.env.NEXT_PUBLIC_EXTENSION_FIREFOX_URL || '';
+    const desktopWinUrl = process.env.NEXT_PUBLIC_DESKTOP_WIN_URL || '';
+    const desktopMacUrl = process.env.NEXT_PUBLIC_DESKTOP_MAC_URL || '';
+
+    const adminEmail = process.env.ADMIN_EMAIL || '';
+    const isAdmin = typeof currentUser.email === 'string' && adminEmail && currentUser.email === adminEmail;
+
     return NextResponse.json({
       plan: org.plan,
       trialEndsAt: org.trialEndsAt,
       trialExpired,
+      planExpiresAt: org.planExpiresAt,
+      paidPlanExpired,
       organizationId: organizationIdStr,
       currentRole,
+      timeTrackingMode: org.timeTrackingMode,
+      extensionChromeUrl,
+      extensionEdgeUrl,
+      extensionFirefoxUrl,
+      desktopWinUrl,
+      desktopMacUrl,
+      isAdmin,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';

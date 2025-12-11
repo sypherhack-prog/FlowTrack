@@ -64,9 +64,17 @@ async function loadBlockedSites() {
 
 function loadAuth() {
   return new Promise((resolve) => {
-    chrome.storage.local.get({ token: null }, (items) => {
-      resolve(items.token);
-    });
+    try {
+      chrome.storage.local.get({ token: null }, (items) => {
+        if (!items || typeof items.token !== 'string') {
+          resolve(null);
+          return;
+        }
+        resolve(items.token);
+      });
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 
@@ -126,6 +134,20 @@ async function isBlockedUrl(url) {
   }
 }
 
+async function handleTabActivity(tab) {
+  if (!tab || !tab.url) return;
+
+  try {
+    await sendHeartbeat('active', tab);
+
+    if (await isBlockedUrl(tab.url)) {
+      await sendBlockedEvent(tab);
+    }
+  } catch (e) {
+    // silencieux
+  }
+}
+
 async function handleHeartbeatAlarm() {
   const config = await loadConfig();
   if (!config.trackingEnabled) return;
@@ -133,13 +155,7 @@ async function handleHeartbeatAlarm() {
   chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
     const tab = tabs[0];
     if (!tab || !tab.url) return;
-
-    const level = 'active';
-    await sendHeartbeat(level, tab);
-
-    if (await isBlockedUrl(tab.url)) {
-      await sendBlockedEvent(tab);
-    }
+    await handleTabActivity(tab);
   });
 }
 
@@ -165,6 +181,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'flowtrack-heartbeat') {
     handleHeartbeatAlarm();
   }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab && tab.url) {
+    handleTabActivity(tab);
+  }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  chrome.tabs.get(activeInfo.tabId, (tab) => {
+    if (chrome.runtime.lastError || !tab || !tab.url) {
+      return;
+    }
+    handleTabActivity(tab);
+  });
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

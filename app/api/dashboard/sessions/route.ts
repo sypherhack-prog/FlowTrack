@@ -13,7 +13,8 @@ export async function GET(request: Request) {
     await connectDB();
 
     const entries = await TimeEntry.find({ userId: user.id })
-      .populate({ path: 'projectId', model: Project })
+      .select('projectId task startTime endTime seconds screenshotUrls activityLog')
+      .populate({ path: 'projectId', model: Project, select: 'name hourlyRate' })
       .sort({ startTime: -1 })
       .limit(50);
 

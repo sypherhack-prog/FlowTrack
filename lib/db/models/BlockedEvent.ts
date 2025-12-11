@@ -8,5 +8,6 @@ const blockedEventSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+blockedEventSchema.index({ userId: 1, createdAt: -1 });
 
 export default mongoose.models.BlockedEvent || mongoose.model('BlockedEvent', blockedEventSchema);

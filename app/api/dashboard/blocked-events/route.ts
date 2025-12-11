@@ -41,7 +41,8 @@ export async function GET(request: Request) {
 
   const events = await BlockedEvent.find({ userId: { $in: userIds } })
     .sort({ createdAt: -1 })
-    .limit(20);
+    .limit(200)
+    .select('userId url createdAt');
 
   const items = events.map((event: any) => ({
     id: event._id.toString(),

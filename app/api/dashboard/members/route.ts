@@ -51,8 +51,14 @@ export async function GET(request: Request) {
       });
     }
 
-    const memberships = await Membership.find({ organizationId }).populate('userId');
-    const invites = await Invitation.find({ organizationId }).sort({ createdAt: -1 });
+    const memberships = await Membership.find({ organizationId })
+      .populate({ path: 'userId', select: 'name email' })
+      .sort({ createdAt: -1 });
+
+    const invites = await Invitation.find({ organizationId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .select('email role status createdAt');
 
     const members = memberships.map((membership: any) => {
       const u = membership.userId as any | undefined;
@@ -74,7 +80,7 @@ export async function GET(request: Request) {
       createdAt: inv.createdAt as Date,
     }));
 
-    const myMembership = await Membership.findOne({ organizationId, userId: userDoc._id });
+    const myMembership = await Membership.findOne({ organizationId, userId: userDoc._id }).select('role');
     const currentRole = (myMembership?.role as string | undefined) ?? 'member';
 
     return NextResponse.json({ members, invites: inviteItems, currentRole });

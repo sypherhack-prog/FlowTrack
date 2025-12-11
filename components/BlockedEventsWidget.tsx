@@ -70,8 +70,10 @@ export function BlockedEventsWidget() {
 
   const totalEvents = items.length;
 
-  const topUsers = (() => {
-    const byUser = new Map<
+  // Regroupement par couple (membre, site) pour voir clairement
+  // "Facebook", "YouTube", "TikTok" pour chaque utilisateur.
+  const topEntries = (() => {
+    const byKey = new Map<
       string,
       {
         key: string;
@@ -87,13 +89,14 @@ export function BlockedEventsWidget() {
     items.forEach((item) => {
       const meta = getSiteMeta(item.url);
       const displayName = item.userName || item.userEmail || 'Unknown user';
-      const key = String(item.userId || item.userEmail || 'unknown');
+      const userKey = String(item.userId || item.userEmail || 'unknown');
+      const siteKey = `${userKey}::${meta.host || meta.name}`;
       const createdAt = item.createdAt;
 
-      const existing = byUser.get(key);
+      const existing = byKey.get(siteKey);
       if (!existing) {
-        byUser.set(key, {
-          key,
+        byKey.set(siteKey, {
+          key: siteKey,
           displayName,
           count: 1,
           lastAt: createdAt,
@@ -112,9 +115,7 @@ export function BlockedEventsWidget() {
       }
     });
 
-    return Array.from(byUser.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+    return Array.from(byKey.values()).sort((a, b) => b.count - a.count);
   })();
 
   return (
@@ -128,7 +129,7 @@ export function BlockedEventsWidget() {
           <p className="text-sm text-gray-500">No blocked sites detected yet.</p>
         )}
         <ul className="space-y-3 text-sm">
-          {topUsers.map((group) => {
+          {topEntries.map((group) => {
             const percent = totalEvents > 0 ? Math.round((group.count / totalEvents) * 100) : 0;
             return (
               <li

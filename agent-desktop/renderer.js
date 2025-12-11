@@ -24522,10 +24522,16 @@
     }, [isTracking, auth.baseUrl, auth.token, activity]);
     (0, import_react.useEffect)(() => {
       if (!isTracking || !auth.token || !window.flowtrackAgent?.captureScreen) return;
+      console.log("[FlowTrack Agent] Desktop capture effect active", {
+        isTracking,
+        hasToken: !!auth.token,
+        hasCapture: !!window.flowtrackAgent?.captureScreen
+      });
       let cancelled = false;
       const interval = window.setInterval(async () => {
         try {
           const data = await window.flowtrackAgent.captureScreen();
+          console.log("[FlowTrack Agent] captureScreen result", { hasData: !!data });
           if (!data || cancelled) return;
           const blob = new Blob([data], { type: "image/png" });
           const form = new FormData();
@@ -24539,9 +24545,10 @@
             },
             body: form
           });
-        } catch {
+        } catch (err) {
+          console.error("[FlowTrack Agent] Failed to send desktop screenshot", err);
         }
-      }, 2e4);
+      }, 1e4);
       return () => {
         cancelled = true;
         window.clearInterval(interval);
@@ -24590,6 +24597,36 @@
       setSeconds(0);
       setActivity("idle");
       setStatusMessage("D\xE9connect\xE9.", "success");
+    };
+    const handleTestCapture = async () => {
+      if (!auth.token || !auth.baseUrl.trim() || !window.flowtrackAgent?.captureScreen) return;
+      const baseUrl = auth.baseUrl.trim();
+      try {
+        const data = await window.flowtrackAgent.captureScreen();
+        if (!data) {
+          setStatusMessage("Impossible de capturer l'\xE9cran (aucune source d\xE9tect\xE9e).", "error");
+          return;
+        }
+        const blob = new Blob([data], { type: "image/png" });
+        const form = new FormData();
+        form.append("screenshot", blob, "desktop-test.png");
+        form.append("url", "desktop://screen");
+        form.append("title", "FlowTrack Desktop Agent (test)");
+        const res = await fetch(`${baseUrl}/api/track/screenshot`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.token}`
+          },
+          body: form
+        });
+        if (!res.ok) {
+          setStatusMessage(`Erreur lors de l'envoi de la capture test (HTTP ${res.status}).`, "error");
+          return;
+        }
+        setStatusMessage("Capture test envoy\xE9e avec succ\xE8s.", "success");
+      } catch {
+        setStatusMessage("Erreur lors de la capture test.", "error");
+      }
     };
     const handleToggleTracking = async () => {
       if (!auth.token) return;
@@ -24711,16 +24748,28 @@
         ),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { id: "toggleBtn", className: "btn btn-primary", onClick: handleToggleTracking, children: isTracking ? "Arr\xEAter le suivi" : "D\xE9marrer le suivi" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 6 }, className: "small", children: "Les donn\xE9es sont envoy\xE9es \xE0 votre espace FlowTrack toutes les quelques secondes." }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 4 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            id: "logoutBtn",
-            className: "btn btn-ghost",
-            style: { width: "auto", paddingInline: 8, fontSize: 11 },
-            onClick: handleLogout,
-            children: "Se d\xE9connecter"
-          }
-        ) })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "btn btn-ghost",
+              style: { width: "auto", paddingInline: 8, fontSize: 11, marginRight: 8 },
+              onClick: handleTestCapture,
+              children: "Test capture"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              id: "logoutBtn",
+              className: "btn btn-ghost",
+              style: { width: "auto", paddingInline: 8, fontSize: 11 },
+              onClick: handleLogout,
+              children: "Se d\xE9connecter"
+            }
+          )
+        ] })
       ] })
     ] });
   };

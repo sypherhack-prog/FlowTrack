@@ -1,11 +1,56 @@
+"use client";
+
+import { useEffect, useState } from 'react';
 import { BlockedSitesSettings } from '@/components/BlockedSitesSettings';
 
+type TimeTrackingMode = 'web_app' | 'all_platforms' | 'silent_app' | string | undefined;
+
 export default function ActivityTrackingSettingsPage() {
-  const chromeUrl = process.env.NEXT_PUBLIC_EXTENSION_CHROME_URL;
-  const edgeUrl = process.env.NEXT_PUBLIC_EXTENSION_EDGE_URL;
-  const firefoxUrl = process.env.NEXT_PUBLIC_EXTENSION_FIREFOX_URL;
-  const desktopWinUrl = process.env.NEXT_PUBLIC_DESKTOP_WIN_URL;
-  const desktopMacUrl = process.env.NEXT_PUBLIC_DESKTOP_MAC_URL;
+  const [plan, setPlan] = useState<string | null>(null);
+  const [timeTrackingMode, setTimeTrackingMode] = useState<TimeTrackingMode>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  const [chromeUrl, setChromeUrl] = useState<string>('');
+  const [edgeUrl, setEdgeUrl] = useState<string>('');
+  const [firefoxUrl, setFirefoxUrl] = useState<string>('');
+  const [desktopWinUrl, setDesktopWinUrl] = useState<string>('');
+  const [desktopMacUrl, setDesktopMacUrl] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch('/api/dashboard/plan-status', { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setPlan(typeof data.plan === 'string' ? data.plan : null);
+        setTimeTrackingMode(data.timeTrackingMode as TimeTrackingMode);
+
+        setChromeUrl(typeof data.extensionChromeUrl === 'string' ? data.extensionChromeUrl : '');
+        setEdgeUrl(typeof data.extensionEdgeUrl === 'string' ? data.extensionEdgeUrl : '');
+        setFirefoxUrl(typeof data.extensionFirefoxUrl === 'string' ? data.extensionFirefoxUrl : '');
+        setDesktopWinUrl(typeof data.desktopWinUrl === 'string' ? data.desktopWinUrl : '');
+        setDesktopMacUrl(typeof data.desktopMacUrl === 'string' ? data.desktopMacUrl : '');
+      } catch {
+        // laisser les valeurs par défaut
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isPaidPlan = plan !== null && plan !== 'trial';
+  const mode: TimeTrackingMode = timeTrackingMode ?? 'web_app';
+  const showExtensionGuide = isPaidPlan && (mode === 'web_app' || mode === 'all_platforms');
+  const showDesktopGuide = isPaidPlan && (mode === 'all_platforms' || mode === 'silent_app');
 
   return (
     <div className="space-y-8">
@@ -17,15 +62,27 @@ export default function ActivityTrackingSettingsPage() {
         </p>
       </div>
 
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">1. Installer l&apos;extension navigateur FlowTrack</h3>
-        <p className="text-sm text-gray-600">
-          Recommandé pour démarrer rapidement. L&apos;extension envoie les heartbeats, les événements de sites bloqués et,
-          si activé par votre plan, les captures d&apos;écran. Vous pouvez l&apos;installer manuellement à partir d&apos;une archive
-          ZIP, même si elle n&apos;est pas encore publiée sur les stores.
-        </p>
+      {loading && (
+        <p className="text-sm text-gray-500">Chargement de vos paramètres d&apos;organisation…</p>
+      )}
 
-        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700 bg-white rounded-xl shadow p-4 border border-gray-100">
+      {!loading && !isPaidPlan && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
+          Les guides d&apos;installation de l&apos;extension et de l&apos;application desktop sont disponibles une fois votre plan
+          FlowTrack activé. Terminez votre période d&apos;essai ou choisissez un plan payant pour continuer.
+        </p>
+      )}
+
+      {showExtensionGuide && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">1. Installer l&apos;extension navigateur FlowTrack</h3>
+          <p className="text-sm text-gray-600">
+            Recommandé pour démarrer rapidement. L&apos;extension envoie les heartbeats, les événements de sites bloqués et,
+            si activé par votre plan, les captures d&apos;écran. Vous pouvez l&apos;installer manuellement à partir d&apos;une
+            archive ZIP, même si elle n&apos;est pas encore publiée sur les stores.
+          </p>
+
+          <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700 bg-white rounded-xl shadow p-4 border border-gray-100">
           <li>
             Téléchargez le fichier ZIP de l&apos;extension FlowTrack fourni par votre administrateur, puis extrayez-le dans
             un dossier (par exemple
@@ -103,56 +160,59 @@ export default function ActivityTrackingSettingsPage() {
             données commenceront alors à remonter dans le dashboard.
           </li>
         </ol>
-      </section>
+        </section>
+      )}
 
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">2. Installer l&apos;application desktop FlowTrack</h3>
-        <p className="text-sm text-gray-600">
-          L&apos;application desktop permet de suivre l&apos;activité même en dehors du navigateur, selon le mode de suivi que
-          vous avez choisi.
-        </p>
+      {showDesktopGuide && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">2. Installer l&apos;application desktop FlowTrack</h3>
+          <p className="text-sm text-gray-600">
+            L&apos;application desktop permet de suivre l&apos;activité même en dehors du navigateur, selon le mode de suivi que
+            vous avez choisi lors de l&apos;onboarding.
+          </p>
 
-        <div className="bg-white rounded-xl shadow p-4 border border-gray-100 space-y-3 text-sm text-gray-700">
-          <p className="font-medium">Téléchargement</p>
-          <div className="flex flex-wrap gap-2">
-            {desktopWinUrl && (
-              <a
-                href={desktopWinUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
-              >
-                Télécharger pour Windows
-              </a>
-            )}
-            {desktopMacUrl && (
-              <a
-                href={desktopMacUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center rounded-full bg-slate-700 px-3 py-1 text-xs font-medium text-white hover:bg-slate-600"
-              >
-                Télécharger pour macOS
-              </a>
-            )}
-            {!desktopWinUrl && !desktopMacUrl && (
-              <span className="text-xs text-gray-500">
-                Ajoutez les URLs de téléchargement de vos applications desktop dans les variables d&apos;environnement pour
-                afficher ici les boutons de téléchargement.
-              </span>
-            )}
+          <div className="bg-white rounded-xl shadow p-4 border border-gray-100 space-y-3 text-sm text-gray-700">
+            <p className="font-medium">Téléchargement</p>
+            <div className="flex flex-wrap gap-2">
+              {desktopWinUrl && (
+                <a
+                  href={desktopWinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  Télécharger pour Windows
+                </a>
+              )}
+              {desktopMacUrl && (
+                <a
+                  href={desktopMacUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full bg-slate-700 px-3 py-1 text-xs font-medium text-white hover:bg-slate-600"
+                >
+                  Télécharger pour macOS
+                </a>
+              )}
+              {!desktopWinUrl && !desktopMacUrl && (
+                <span className="text-xs text-gray-500">
+                  Ajoutez les URLs de téléchargement de vos applications desktop dans les variables d&apos;environnement
+                  pour afficher ici les boutons de téléchargement.
+                </span>
+              )}
+            </div>
+
+            <ol className="list-decimal list-inside space-y-2 mt-2">
+              <li>Téléchargez l&apos;installeur correspondant au système d&apos;exploitation de vos employés.</li>
+              <li>Exécutez l&apos;installeur puis suivez les étapes d&apos;installation.</li>
+              <li>
+                Au premier lancement, connectez-vous avec les identifiants FlowTrack de l&apos;utilisateur. L&apos;application se
+                mettra ensuite en arrière-plan et enverra automatiquement les données d&apos;activité.
+              </li>
+            </ol>
           </div>
-
-          <ol className="list-decimal list-inside space-y-2 mt-2">
-            <li>Téléchargez l&apos;installeur correspondant au système d&apos;exploitation de vos employés.</li>
-            <li>Exécutez l&apos;installeur puis suivez les étapes d&apos;installation.</li>
-            <li>
-              Au premier lancement, connectez-vous avec les identifiants FlowTrack de l&apos;utilisateur. L&apos;application se
-              mettra ensuite en arrière-plan et enverra automatiquement les données d&apos;activité.
-            </li>
-          </ol>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="space-y-3">
         <BlockedSitesSettings />

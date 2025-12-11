@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -22,6 +22,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [planChecked, setPlanChecked] = useState(false);
   const [mustChoosePlan, setMustChoosePlan] = useState(false);
+  const [messageCount, setMessageCount] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const isManagerRef = useRef(false);
   const orgIdRef = useRef<string | null>(null);
 
@@ -65,10 +68,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_ENFORCE_TRIAL !== 'true') {
-      return;
-    }
-
     let cancelled = false;
 
     const checkPlan = async () => {
@@ -79,21 +78,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         const trialExpired = Boolean(data.trialExpired) && data.plan === 'trial';
-        setPlanChecked(true);
-        setMustChoosePlan(trialExpired);
+        const paidPlanExpired = Boolean(data.paidPlanExpired) && data.plan !== 'trial';
+
+        const role = typeof data.currentRole === 'string' ? data.currentRole : 'member';
+
+        setIsAdmin(Boolean(data.isAdmin));
 
         if (data.organizationId) {
           orgIdRef.current = String(data.organizationId);
         }
-        const role = typeof data.currentRole === 'string' ? data.currentRole : 'member';
         isManagerRef.current = role === 'owner' || role === 'manager';
 
-        if (
-          trialExpired &&
-          pathname &&
-          !pathname.startsWith('/apps/dashboard/billing/choose-plan')
-        ) {
-          router.replace('/apps/dashboard/billing/choose-plan');
+        const mustEnforce = trialExpired || paidPlanExpired;
+
+        if (process.env.NEXT_PUBLIC_ENFORCE_TRIAL === 'true') {
+          setPlanChecked(true);
+          setMustChoosePlan(mustEnforce);
+
+          if (
+            mustEnforce &&
+            pathname &&
+            !pathname.startsWith('/apps/dashboard/billing/choose-plan')
+          ) {
+            router.replace('/apps/dashboard/billing/choose-plan');
+          }
         }
       } catch {
         // silent fail, dashboard remains accessible
@@ -107,42 +115,102 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
-  const sections = [
-    {
-      title: 'Overview',
-      items: [
-        { href: '/apps/dashboard/projects', label: 'Dashboard' },
-        { href: '/apps/dashboard/tracker', label: 'Time tracker' },
-      ],
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMessageCount = async () => {
+      try {
+        const res = await fetch('/api/dashboard/messages');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        const total =
+          typeof data.total === 'number'
+            ? data.total
+            : Array.isArray(data.items)
+            ? data.items.length
+            : 0;
+        setMessageCount(total);
+      } catch {
+      }
+    };
+
+    loadMessageCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handler = () => {
+      setMessageCount((prev) => {
+        if (prev == null) return 1;
+        return prev + 1;
+      });
+    };
+
+    window.addEventListener('flowtrack:message-created', handler as EventListener);
+
+    return () => {
+      window.removeEventListener('flowtrack:message-created', handler as EventListener);
+    };
+  }, []);
+
+  const sections = useMemo(
+    () => {
+      const base = [
+        {
+          title: 'Overview',
+          items: [
+            { href: '/apps/dashboard/projects', label: 'Dashboard' },
+            { href: '/apps/dashboard/tracker', label: 'Time tracker' },
+          ],
+        },
+        {
+          title: 'Timesheets',
+          items: [{ href: '/apps/dashboard/timesheets/view-edit', label: 'View & edit' }],
+        },
+        {
+          title: 'Activity',
+          items: [
+            { href: '/apps/dashboard/activity/screenshots', label: 'Screenshots' },
+            { href: '/apps/dashboard/activity/screenshots-timeline', label: 'Screenshots timeline' },
+            { href: '/apps/dashboard/activity/urls', label: 'URLs' },
+            { href: '/apps/dashboard/activity/apps', label: 'Apps' },
+          ],
+        },
+        {
+          title: 'Reports',
+          items: [
+            { href: '/apps/dashboard/reports', label: 'Overview' },
+            { href: '/apps/dashboard/reports/time-activity', label: 'Time & activity' },
+          ],
+        },
+        {
+          title: 'Communication',
+          items: [{ href: '/apps/dashboard/messages', label: 'Messages' }],
+        },
+        {
+          title: 'Settings',
+          items: [{ href: '/apps/dashboard/settings/activity-tracking', label: 'Activity & tracking' }],
+        },
+      ];
+
+      if (isAdmin) {
+        base.push({
+          title: 'Admin',
+          items: [{ href: '/apps/dashboard/admin/overview', label: 'Admin overview' }],
+        });
+      }
+
+      return base;
     },
-    {
-      title: 'Timesheets',
-      items: [{ href: '/apps/dashboard/timesheets/view-edit', label: 'View & edit' }],
-    },
-    {
-      title: 'Activity',
-      items: [
-        { href: '/apps/dashboard/activity/screenshots', label: 'Screenshots' },
-        { href: '/apps/dashboard/activity/urls', label: 'URLs' },
-        { href: '/apps/dashboard/activity/apps', label: 'Apps' },
-      ],
-    },
-    {
-      title: 'Reports',
-      items: [
-        { href: '/apps/dashboard/reports', label: 'Overview' },
-        { href: '/apps/dashboard/reports/time-activity', label: 'Time & activity' },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [{ href: '/apps/dashboard/messages', label: 'Messages' }],
-    },
-    {
-      title: 'Settings',
-      items: [{ href: '/apps/dashboard/settings/activity-tracking', label: 'Activity & tracking' }],
-    },
-  ];
+    [isAdmin],
+  );
 
   // Par défaut, seule la section "Overview" est ouverte pour éviter que toutes
   // les listes déroulantes remplissent la page dès l'arrivée sur le dashboard.
@@ -196,7 +264,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 : 'hover:bg-slate-800 text-slate-200'
                             }`}
                           >
-                            {item.label}
+                            <span className="flex items-center justify-between gap-2">
+                              <span>{item.label}</span>
+                              {section.title === 'Communication' &&
+                                item.href === '/apps/dashboard/messages' &&
+                                messageCount !== null &&
+                                messageCount > 0 && (
+                                  <span className="ml-2 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] leading-none text-white">
+                                    {messageCount > 9 ? '9+' : messageCount}
+                                  </span>
+                                )}
+                            </span>
                           </Link>
                         );
                       })}

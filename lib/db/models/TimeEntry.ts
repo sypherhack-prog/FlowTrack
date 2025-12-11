@@ -19,5 +19,7 @@ const timeEntrySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+timeEntrySchema.index({ userId: 1, startTime: -1 });
+timeEntrySchema.index({ projectId: 1, userId: 1 });
 
 export default mongoose.models.TimeEntry || mongoose.model('TimeEntry', timeEntrySchema);

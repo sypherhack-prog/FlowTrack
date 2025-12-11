@@ -33,9 +33,15 @@ export async function GET(request: Request) {
     }
 
     const rules = await BlockedSiteRule.find({ organizationId: userDoc.organizationId }).sort({ createdAt: 1 });
-    const sites = rules.length > 0 ? (rules.map((r: any) => r.pattern as string) as string[]) : DEFAULT_BLOCKED_SITES;
 
-    return NextResponse.json({ sites });
+    const defaultSites = DEFAULT_BLOCKED_SITES.map((s) => s.toLowerCase());
+    const customSites = rules
+      .map((r: any) => (typeof r.pattern === 'string' ? r.pattern.toLowerCase().trim() : ''))
+      .filter((s: string) => !!s);
+
+    const merged = Array.from(new Set([...defaultSites, ...customSites]));
+
+    return NextResponse.json({ sites: merged });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';
     console.error('Error in GET /api/track/blocked-sites', err);

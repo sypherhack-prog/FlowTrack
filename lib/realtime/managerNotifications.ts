@@ -2,16 +2,15 @@
 // Utilitaire côté serveur pour envoyer des notifications en temps réel
 // aux managers via le serveur Socket.io (container socket).
 
-import type { Socket } from 'socket.io-client';
 import { io as ClientIO } from 'socket.io-client';
 
 import { connectDB } from '@/lib/db/mongodb';
 import User from '@/lib/db/models/Users';
 import Organization from '@/lib/db/models/Organization';
 
-let socket: Socket | null = null;
+let socket: any | null = null;
 
-function getSocket(): Socket | null {
+function getSocket() {
   try {
     if (socket && socket.connected) return socket;
 
@@ -20,7 +19,7 @@ function getSocket(): Socket | null {
       transports: ['websocket'],
     });
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', (err: any) => {
       console.error('Socket client connect error:', err?.message || err);
     });
 
